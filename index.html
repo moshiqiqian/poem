@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>古诗词资源库 - 墨香雅韵</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700&family=Inter:wght@400;600;700&display=swap');
+        body {
+            font-family: 'Noto Serif SC', 'Inter', serif;
+            background-color: #f7f3ed; /* 淡米色背景，模仿宣纸 */
+            color: #3f3f3f; /* 深灰色文本 */
+        }
+        .card {
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.05);
+        }
+        .text-classical {
+            font-family: 'Noto Serif SC', serif;
+        }
+        /* D3 节点颜色分组 (可根据需要调整) */
+        .node-group-1 { fill: #c0392b; } /* 唐代 */
+        .node-group-2 { fill: #27ae60; } /* 宋代 */
+        .node-group-3 { fill: #2980b9; } /* 其他 */
+    </style>
+</head>
+<body>
+    <div id="app-container" class="min-h-screen">
+        <div id="message-container"></div>
+        
+        <header class="bg-white sticky top-0 z-10 border-b border-gray-200">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex justify-between items-center">
+                <h1 class="text-2xl font-bold text-red-800 cursor-pointer" onclick="showView('list')">古诗词资源库</h1>
+                <nav>
+                    <button id="show-graph-btn" onclick="showView('graph'); fetchRelationships();" class="text-sm font-medium text-gray-700 hover:text-red-700 transition duration-150 ease-in-out border border-gray-300 rounded-lg px-4 py-2 hover:bg-red-50">
+                        诗人关系图谱
+                    </button>
+                </nav>
+            </div>
+        </header>
+
+        <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div id="list-view" class="view">
+                <h2 class="text-3xl font-semibold mb-6 border-b pb-2 text-classical">古诗词列表</h2>
+                <div id="poem-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    </div>
+            </div>
+
+            <div id="detail-view" class="view hidden">
+                <button onclick="showView('list')" class="flex items-center text-gray-600 hover:text-red-700 mb-6 transition duration-150">
+                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                    返回列表
+                </button>
+                <div id="poem-detail" class="bg-white p-8 rounded-xl card mb-8 text-classical">
+                    </div>
+                
+                <h3 class="text-2xl font-semibold mb-4 border-b pb-2 text-classical">用户评论</h3>
+                <div id="comment-section" class="bg-white p-6 rounded-xl card">
+                    <div id="comments-list" class="space-y-4 mb-6">
+                        </div>
+
+                    <h4 class="text-xl font-medium mb-3 text-classical">发表评论</h4>
+                    <form id="comment-form" class="space-y-4">
+                        <input type="hidden" id="form-poem-id">
+                        <input type="hidden" id="form-parent-id" value="">
+                        <input type="text" id="comment-username" placeholder="您的昵称 (可选)" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-red-500">
+                        <textarea id="comment-content" placeholder="输入您的见解..." rows="4" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-red-500" required></textarea>
+                        <div id="reply-info" class="text-sm text-gray-500 hidden">
+                            回复 <span id="reply-target-username" class="font-medium text-red-600"></span>。
+                            <button type="button" onclick="cancelReply()" class="text-blue-500 hover:text-blue-700 ml-2">取消回复</button>
+                        </div>
+                        <button type="submit" class="w-full bg-red-700 text-white py-2 rounded-lg font-semibold hover:bg-red-800 transition duration-150">提交评论</button>
+                    </form>
+                </div>
+            </div>
+
+            <div id="graph-view" class="view hidden">
+                <button onclick="showView('list')" class="flex items-center text-gray-600 hover:text-red-700 mb-6 transition duration-150">
+                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                    返回列表
+                </button>
+                <h2 class="text-3xl font-semibold mb-6 border-b pb-2 text-classical">诗人关系图谱</h2>
+                <div id="graph-container" class="bg-white p-4 rounded-xl card overflow-hidden">
+                    <svg id="relationship-graph" width="100%" height="700"></svg>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:3000/api';
+        
+        // --- 1. TypeScript 接口模拟 (方便代码提示和阅读) ---
+        /** @typedef {Object} PoemResult */
+        /**
+         * @typedef {Object} PoemResult
+         * @property {number} id
+         * @property {string} title
+         * @property {string} content
+         * @property {string} author // FIX: 统一使用 author
+         * @property {string} dynasty
+         */
+
+        /**
+         * @typedef {Object} CommentResult
+         * @property {number} id
+         * @property {number} poemID
+         * @property {string} content
+         * @property {string} username
+         * @property {string} createdAt
+         * @property {number | null} parentID
+         */
+        
+        /** @typedef {Object} PoetNode */
+        /**
+         * @typedef {Object} PoetNode
+         * @property {string} id - 诗人姓名
+         * @property {string} dynasty - 朝代
+         * @property {number} group - D3 分组
+         */
+
+        /** @typedef {Object} PoetLink */
+        /**
+         * @typedef {Object} PoetLink
+         * @property {string} source - 诗人 A 姓名
+         * @property {string} target - 诗人 B 姓名
+         * @property {string} relation - 关系描述
+         * @property {number} value - 关系强度
+         */
+
+
+        // --- 2. 视图管理函数 ---
+        let currentPoemId = null;
+        const views = {
+            list: document.getElementById('list-view'),
+            detail: document.getElementById('detail-view'),
+            graph: document.getElementById('graph-view'),
+        };
+
+        /**
+         * 切换视图
+         * @param {'list' | 'detail' | 'graph'} viewName 
+         */
+        function showView(viewName) {
+            Object.keys(views).forEach(key => {
+                views[key].classList.add('hidden');
+            });
+            views[viewName].classList.remove('hidden');
+            
+            // 确保在切换到列表时清空详情和图谱
+            if (viewName === 'list') {
+                currentPoemId = null;
+            }
+        }
+
+
+        // --- 3. 消息提示函数 ---
+        const showMessage = (message, type = 'info') => {
+            const container = document.getElementById('message-container');
+            let bgColor, textColor;
+
+            switch (type) {
+                case 'success':
+                    bgColor = 'bg-green-100 border-green-400 text-green-700';
+                    textColor = 'text-green-700';
+                    break;
+                case 'error':
+                    bgColor = 'bg-red-100 border-red-400 text-red-700';
+                    textColor = 'text-red-700';
+                    break;
+                case 'info':
+                default:
+                    bgColor = 'bg-blue-100 border-blue-400 text-blue-700';
+                    textColor = 'text-blue-700';
+                    break;
+            }
+
+            const messageBox = document.createElement('div');
+            messageBox.className = `fixed top-4 right-4 z-50 p-4 rounded-lg shadow-xl border ${bgColor} transition-opacity duration-300 opacity-0`;
+            messageBox.innerHTML = `<p class="font-medium ${textColor}">${message}</p>`;
+
+            container.appendChild(messageBox);
+
+            // 淡入
+            setTimeout(() => messageBox.style.opacity = '1', 10);
+
+            // 3秒后淡出并移除
+            setTimeout(() => {
+                messageBox.style.opacity = '0';
+                setTimeout(() => container.removeChild(messageBox), 300);
+            }, 3000);
+        };
+
+
+        // --- 4. 数据获取与渲染：诗词列表 ---
+
+        /**
+         * 渲染古诗词列表
+         * @param {PoemResult[]} poems 
+         */
+        function renderPoemList(poems) {
+            const listContainer = document.getElementById('poem-list');
+            listContainer.innerHTML = '';
+
+            poems.forEach(poem => {
+                const card = document.createElement('div');
+                card.className = 'bg-white p-6 rounded-xl card hover:shadow-lg transition duration-300 cursor-pointer text-classical';
+                card.innerHTML = `
+                    <h3 class="text-xl font-bold mb-2 text-red-700">${poem.title}</h3>
+                    <p class="text-gray-600 mb-3 text-sm">${poem.dynasty} · **${poem.author}**</p>
+                    <p class="text-gray-700 italic line-clamp-3">${poem.content}...</p>
+                `;
+                card.onclick = () => fetchPoemDetail(poem.id);
+                listContainer.appendChild(card);
+            });
+        }
+
+        async function fetchPoems() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/poems`);
+                const result = await response.json();
+
+                if (result.code === 200) {
+                    renderPoemList(result.data);
+                } else {
+                    showMessage(`获取列表失败: ${result.message}`, 'error');
+                }
+            } catch (error) {
+                console.error('Fetch poems failed:', error);
+                showMessage('网络错误，无法连接到后端服务。', 'error');
+            }
+        }
+
+
+        // --- 5. 数据获取与渲染：诗词详情 ---
+
+        /**
+         * 渲染古诗词详情
+         * @param {PoemResult} poem 
+         */
+        function renderPoemDetail(poem) {
+            const detailContainer = document.getElementById('poem-detail');
+            detailContainer.innerHTML = `
+                <h2 class="text-4xl font-extrabold mb-4 text-center text-red-800">${poem.title}</h2>
+                <p class="text-lg text-gray-600 mb-6 text-center">${poem.dynasty} · **${poem.author}**</p>
+                <div class="whitespace-pre-wrap text-xl leading-relaxed border-t border-b border-gray-200 py-6">
+                    ${poem.content}
+                </div>
+            `;
+            
+            // 设置评论表单的 poem ID
+            document.getElementById('form-poem-id').value = poem.id;
+        }
+
+        async function fetchPoemDetail(id) {
+            currentPoemId = id;
+            try {
+                const response = await fetch(`${API_BASE_URL}/poem/${id}`);
+                const result = await response.json();
+
+                if (result.code === 200) {
+                    renderPoemDetail(result.data);
+                    fetchComments(id);
+                    showView('detail');
+                } else {
+                    showMessage(`获取详情失败: ${result.message}`, 'error');
+                }
+            } catch (error) {
+                console.error('Fetch poem detail failed:', error);
+                showMessage('网络错误，无法获取诗词详情。', 'error');
+            }
+        }
+
+
+        // --- 6. 数据获取与渲染：评论功能 ---
+
+        function formatCommentTime(timestamp) {
+            const date = new Date(timestamp);
+            return date.toLocaleString('zh-CN', { year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        }
+
+        /**
+         * 渲染评论列表
+         * @param {CommentResult[]} comments 
+         */
+        function renderCommentsList(comments) {
+            const listContainer = document.getElementById('comments-list');
+            listContainer.innerHTML = '';
+            
+            // 1. 构建评论树结构 (Map<parentID, children>)
+            const commentMap = new Map();
+            comments.forEach(c => {
+                commentMap.set(c.id, {...c, children: []});
+            });
+
+            const rootComments = [];
+            comments.forEach(c => {
+                if (c.parentID && commentMap.has(c.parentID)) {
+                    commentMap.get(c.parentID).children.push(commentMap.get(c.id));
+                } else {
+                    rootComments.push(commentMap.get(c.id));
+                }
+            });
+
+            // 2. 递归渲染评论
+            const renderComment = (comment, isReply = false) => {
+                const commentDiv = document.createElement('div');
+                commentDiv.className = `p-3 rounded-lg ${isReply ? 'ml-6 border-l border-gray-200 bg-gray-50' : 'bg-gray-100'}`;
+                
+                const replyText = comment.parentID && commentMap.has(comment.parentID) ? 
+                    `<span class="text-red-600 font-medium">回复 ${commentMap.get(comment.parentID).username}：</span>` : '';
+
+                commentDiv.innerHTML = `
+                    <div class="flex justify-between items-center mb-1">
+                        <span class="font-semibold text-gray-800">${comment.username}</span>
+                        <span class="text-xs text-gray-500">${formatCommentTime(comment.createdAt)}</span>
+                    </div>
+                    <p class="text-gray-700 text-sm mb-2">${replyText}${comment.content}</p>
+                    <button onclick="startReply(${comment.id}, '${comment.username}')" class="text-xs text-blue-500 hover:text-blue-700 transition duration-150">回复</button>
+                `;
+                
+                listContainer.appendChild(commentDiv);
+
+                // 递归渲染子评论
+                comment.children.forEach(child => {
+                    // 对于子评论，我们再次调用 renderComment，并设置为 isReply=true
+                    renderComment(child, true); 
+                });
+            };
+
+            rootComments.forEach(c => renderComment(c, false));
+            
+            if (comments.length === 0) {
+                listContainer.innerHTML = '<p class="text-gray-500 text-center">暂无评论，快来发表您的见解吧！</p>';
+            }
+        }
+
+        /**
+         * 启动回复模式
+         */
+        function startReply(parentID, username) {
+            document.getElementById('form-parent-id').value = parentID;
+            document.getElementById('reply-target-username').textContent = username;
+            document.getElementById('reply-info').classList.remove('hidden');
+            // 滚动到评论表单
+            document.getElementById('comment-form').scrollIntoView({ behavior: 'smooth' });
+            document.getElementById('comment-content').focus();
+        }
+
+        /**
+         * 取消回复模式
+         */
+        function cancelReply() {
+            document.getElementById('form-parent-id').value = '';
+            document.getElementById('reply-info').classList.add('hidden');
+        }
+
+
+        async function fetchComments(poemID) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/comments/${poemID}`);
+                const result = await response.json();
+
+                if (result.code === 200) {
+                    renderCommentsList(result.data);
+                } else {
+                    showMessage(`获取评论失败: ${result.message}`, 'error');
+                }
+            } catch (error) {
+                console.error('Fetch comments failed:', error);
+                showMessage('网络错误，无法获取评论。', 'error');
+            }
+        }
+
+        document.getElementById('comment-form').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            
+            const poemID = parseInt(document.getElementById('form-poem-id').value);
+            const content = document.getElementById('comment-content').value.trim();
+            const username = document.getElementById('comment-username').value.trim() || '匿名用户';
+            const parentID = document.getElementById('form-parent-id').value || null;
+
+            if (!content) return;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/comments`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        poemID, 
+                        content, 
+                        username, 
+                        parentID: parentID ? parseInt(parentID) : null // 确保 parentID 是 null 或数字
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.code === 201) {
+                    showMessage('评论添加成功！', 'success');
+                    
+                    // 清空表单和取消回复状态
+                    document.getElementById('comment-content').value = '';
+                    cancelReply(); 
+                    
+                    // 重新加载评论
+                    fetchComments(poemID);
+
+                } else {
+                    showMessage(`评论失败: ${result.message}`, 'error');
+                }
+            } catch (error) {
+                console.error('Submit comment failed:', error);
+                showMessage('网络错误，无法提交评论。', 'error');
+            }
+        });
+
+
+        // --- 7. 数据获取与渲染：关系图谱 (使用 SVG 渲染) ---
+
+        /**
+         * 渲染诗人关系图谱
+         * @param {RelationshipData} data 
+         */
+        function renderRelationshipGraph(data) {
+            const svg = d3.select("#relationship-graph");
+            const container = document.getElementById('graph-container');
+            
+            // 清理旧的图谱
+            svg.selectAll("*").remove();
+
+            // 确保 SVG 尺寸自适应或固定
+            const width = container.clientWidth;
+            const height = 700;
+            svg.attr("width", width).attr("height", height);
+
+            const nodes = data.nodes;
+            const links = data.links;
+            
+            // 创建力导向图模拟
+            const simulation = d3.forceSimulation(nodes)
+                .force("link", d3.forceLink(links).id(d => d.id).distance(150).strength(0.8))
+                .force("charge", d3.forceManyBody().strength(-300))
+                .force("center", d3.forceCenter(width / 2, height / 2))
+                .force("x", d3.forceX().strength(0.05))
+                .force("y", d3.forceY().strength(0.05));
+
+
+            // 绘制连线 (links)
+            const link = svg.append("g")
+                .attr("stroke", "#999")
+                .attr("stroke-opacity", 0.6)
+                .selectAll("line")
+                .data(links)
+                .join("line")
+                .attr("stroke-width", d => Math.sqrt(d.value) * 2); // 根据强度调整线宽
+
+            // 绘制连线上的文字 (关系描述)
+            const linkText = svg.append("g")
+                .attr("class", "link-labels")
+                .selectAll("text")
+                .data(links)
+                .join("text")
+                .attr("fill", "#666")
+                .attr("font-size", 10)
+                .text(d => d.relation);
+
+
+            // 绘制节点 (nodes)
+            const node = svg.append("g")
+                .attr("stroke", "#fff")
+                .attr("stroke-width", 1.5)
+                .selectAll("circle")
+                .data(nodes)
+                .join("circle")
+                .attr("r", 10)
+                // 使用 CSS 类来根据朝代分组着色
+                .attr("class", d => `node-group-${d.group}`) 
+                .call(drag(simulation));
+
+            // 绘制节点上的文字 (诗人名称)
+            const labels = svg.append("g")
+                .attr("class", "node-labels")
+                .attr("pointer-events", "none") // 确保文字不会阻挡对节点的点击/拖拽
+                .attr("font-family", "Noto Serif SC, serif")
+                .selectAll("text")
+                .data(nodes)
+                .join("text")
+                .attr("text-anchor", "middle")
+                .attr("dy", ".3em")
+                .attr("fill", "#333")
+                .text(d => d.id);
+            
+            // 节点的交互提示 (Tooltip)
+            node.append("title")
+                .text(d => `${d.id} (${d.dynasty})\n关系强度: ${d.value || 'N/A'}`);
+
+
+            // 模拟器的 tick 函数
+            simulation.on("tick", () => {
+                // 更新连线位置
+                link
+                    .attr("x1", d => d.source.x)
+                    .attr("y1", d => d.source.y)
+                    .attr("x2", d => d.target.x)
+                    .attr("y2", d => d.target.y);
+
+                // 更新连线文字位置（放在连线中间）
+                linkText
+                    .attr("x", d => (d.source.x + d.target.x) / 2)
+                    .attr("y", d => (d.source.y + d.target.y) / 2);
+
+                // 更新节点位置
+                node
+                    .attr("cx", d => d.x)
+                    .attr("cy", d => d.y);
+                
+                // 更新标签位置
+                labels
+                    .attr("x", d => d.x)
+                    .attr("y", d => d.y + 18); // 文字放在节点下方
+            });
+
+
+            // D3 拖拽函数
+            function drag(simulation) {
+                function dragstarted(event) {
+                    if (!event.active) simulation.alphaTarget(0.3).restart();
+                    event.subject.fx = event.subject.x;
+                    event.subject.fy = event.subject.y;
+                }
+
+                function dragged(event) {
+                    event.subject.fx = event.x;
+                    event.subject.fy = event.y;
+                }
+
+                function dragended(event) {
+                    if (!event.active) simulation.alphaTarget(0);
+                    event.subject.fx = null; // 释放固定位置
+                    event.subject.fy = null;
+                }
+
+                return d3.drag()
+                    .on("start", dragstarted)
+                    .on("drag", dragged)
+                    .on("end", dragended);
+            }
+        }
+
+        async function fetchRelationships() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/relationships`);
+                const result = await response.json();
+
+                if (result.code === 200) {
+                    renderRelationshipGraph(result.data);
+                    showMessage('诗人关系图谱数据加载成功。', 'success');
+                } else {
+                    showMessage(`获取图谱数据失败: ${result.message}`, 'error');
+                }
+            } catch (error) {
+                console.error('Fetch relationships failed:', error);
+                showMessage('网络错误，无法加载关系图谱数据。', 'error');
+            }
+        }
+
+
+        // --- 8. 启动应用 ---
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchPoems();
+        });
+
+    </script>
+</body>
+</html>
