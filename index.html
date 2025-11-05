@@ -19,181 +19,247 @@
         .text-classical {
             font-family: 'Noto Serif SC', serif;
         }
-        /* D3 节点颜色分组 (可根据需要调整) */
-        .node-group-1 { fill: #c0392b; } /* 唐代 */
-        .node-group-2 { fill: #27ae60; } /* 宋代 */
-        .node-group-3 { fill: #2980b9; } /* 其他 */
+        .view {
+            display: none;
+        }
+        .active {
+            display: block;
+        }
+        /* 关系图谱样式 */
+        .node circle {
+            stroke: #fff;
+            stroke-width: 1.5px;
+        }
+        .link {
+            stroke: #999;
+            stroke-opacity: 0.6;
+            stroke-width: 1.5px;
+        }
+        .relationship-svg {
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            background-color: white;
+        }
     </style>
 </head>
-<body>
-    <div id="app-container" class="min-h-screen">
-        <div id="message-container"></div>
-        
-        <header class="bg-white sticky top-0 z-10 border-b border-gray-200">
-            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex justify-between items-center">
-                <h1 class="text-2xl font-bold text-red-800 cursor-pointer" onclick="showView('list')">古诗词资源库</h1>
-                <nav>
-                    <button id="show-graph-btn" onclick="showView('graph'); fetchRelationships();" class="text-sm font-medium text-gray-700 hover:text-red-700 transition duration-150 ease-in-out border border-gray-300 rounded-lg px-4 py-2 hover:bg-red-50">
-                        诗人关系图谱
+<body class="min-h-screen">
+    
+    <header class="bg-red-700 shadow-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+            <h1 class="text-3xl font-bold text-white text-classical">墨香雅韵：古诗词资源库</h1>
+            <nav class="space-x-4">
+                <button onclick="changeView('list-view')" class="text-white hover:text-red-300 font-semibold transition duration-150 text-lg">诗词列表</button>
+                <button onclick="changeView('relationship-view')" class="text-white hover:text-red-300 font-semibold transition duration-150 text-lg">关系图谱</button>
+            </nav>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+
+        <div id="list-view" class="view active">
+            <h2 class="text-3xl font-semibold mb-6 border-b pb-2 text-classical">古诗词列表</h2>
+            
+            <form id="search-form" class="mb-4 flex space-x-4">
+                <input type="text" id="search-query" placeholder="搜索诗人、朝代、诗名..." class="flex-grow px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-red-500">
+                <button type="submit" class="bg-red-700 text-white px-6 py-2 rounded-lg font-semibold hover:bg-red-800 transition duration-150">搜索</button>
+            </form>
+            
+            <div id="search-status-container" class="mb-6 hidden">
+                <span class="bg-red-100 text-red-800 text-sm font-medium mr-2 px-3 py-1 rounded-full flex items-center w-fit">
+                    当前筛选关键词：<span id="current-search-query" class="font-bold ml-1"></span>
+                    <button id="clear-search-btn" class="ml-2 text-red-600 hover:text-red-900 focus:outline-none">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
                     </button>
-                </nav>
+                </span>
             </div>
-        </header>
+            
+            <div id="poem-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                </div>
+        </div>
 
-        <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            <div id="list-view" class="view">
-                <h2 class="text-3xl font-semibold mb-6 border-b pb-2 text-classical">古诗词列表</h2>
-                <div id="poem-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div id="detail-view" class="view">
+            <button onclick="changeView('list-view')" class="mb-6 text-red-700 hover:text-red-900 font-semibold flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" />
+                </svg>
+                返回列表
+            </button>
+            <div id="poem-detail-card" class="bg-white p-8 rounded-xl shadow-lg text-classical">
+                <h2 id="detail-title" class="text-4xl font-bold mb-2 text-red-800"></h2>
+                <p id="detail-meta" class="text-gray-600 mb-6 text-lg"></p>
+                <div id="detail-content" class="whitespace-pre-wrap leading-relaxed text-xl border-t pt-6"></div>
+            </div>
+
+            <div class="mt-10 p-8 bg-white rounded-xl shadow-lg">
+                <h3 class="text-2xl font-semibold mb-6 border-b pb-2 text-classical">评论区</h3>
+                <form id="comment-form" class="mb-8 p-4 border rounded-lg bg-gray-50">
+                    <input type="hidden" id="comment-poem-id">
+                    <textarea id="comment-content" placeholder="发表你的见解或评论..." rows="4" class="w-full p-3 border rounded-lg focus:outline-none focus:border-red-500 mb-3 text-classical"></textarea>
+                    <div class="flex justify-between items-center">
+                        <input type="text" id="comment-username" placeholder="你的名字 (可选)" class="px-3 py-2 border rounded-lg w-1/4 text-classical">
+                        <button type="submit" class="bg-red-700 text-white px-6 py-2 rounded-lg font-semibold hover:bg-red-800 transition duration-150">提交评论</button>
+                    </div>
+                </form>
+
+                <div id="comments-container" class="space-y-4">
                     </div>
             </div>
+        </div>
 
-            <div id="detail-view" class="view hidden">
-                <button onclick="showView('list')" class="flex items-center text-gray-600 hover:text-red-700 mb-6 transition duration-150">
-                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
-                    返回列表
-                </button>
-                <div id="poem-detail" class="bg-white p-8 rounded-xl card mb-8 text-classical">
-                    </div>
-                
-                <h3 class="text-2xl font-semibold mb-4 border-b pb-2 text-classical">用户评论</h3>
-                <div id="comment-section" class="bg-white p-6 rounded-xl card">
-                    <div id="comments-list" class="space-y-4 mb-6">
-                        </div>
-
-                    <h4 class="text-xl font-medium mb-3 text-classical">发表评论</h4>
-                    <form id="comment-form" class="space-y-4">
-                        <input type="hidden" id="form-poem-id">
-                        <input type="hidden" id="form-parent-id" value="">
-                        <input type="text" id="comment-username" placeholder="您的昵称 (可选)" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-red-500">
-                        <textarea id="comment-content" placeholder="输入您的见解..." rows="4" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-red-500" required></textarea>
-                        <div id="reply-info" class="text-sm text-gray-500 hidden">
-                            回复 <span id="reply-target-username" class="font-medium text-red-600"></span>。
-                            <button type="button" onclick="cancelReply()" class="text-blue-500 hover:text-blue-700 ml-2">取消回复</button>
-                        </div>
-                        <button type="submit" class="w-full bg-red-700 text-white py-2 rounded-lg font-semibold hover:bg-red-800 transition duration-150">提交评论</button>
-                    </form>
-                </div>
+        <div id="relationship-view" class="view">
+            <h2 class="text-3xl font-semibold mb-6 border-b pb-2 text-classical">诗人关系图谱 (D3 Force Graph)</h2>
+            <div id="relationship-chart" class="relationship-svg w-full" style="height: 700px;">
+                <p class="text-center text-gray-500 pt-6">正在加载图谱数据...</p>
             </div>
+        </div>
+        
+    </main>
 
-            <div id="graph-view" class="view hidden">
-                <button onclick="showView('list')" class="flex items-center text-gray-600 hover:text-red-700 mb-6 transition duration-150">
-                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
-                    返回列表
-                </button>
-                <h2 class="text-3xl font-semibold mb-6 border-b pb-2 text-classical">诗人关系图谱</h2>
-                <div id="graph-container" class="bg-white p-4 rounded-xl card overflow-hidden">
-                    <svg id="relationship-graph" width="100%" height="700"></svg>
-                </div>
-            </div>
-        </main>
-    </div>
+    <div id="message-container" class="fixed bottom-4 right-4 space-y-2">
+        </div>
 
     <script>
         const API_BASE_URL = 'http://localhost:3000/api';
-        
-        // --- 1. TypeScript 接口模拟 (方便代码提示和阅读) ---
-        /** @typedef {Object} PoemResult */
-        /**
-         * @typedef {Object} PoemResult
-         * @property {number} id
-         * @property {string} title
-         * @property {string} content
-         * @property {string} author // FIX: 统一使用 author
-         * @property {string} dynasty
-         */
 
-        /**
-         * @typedef {Object} CommentResult
-         * @property {number} id
-         * @property {number} poemID
-         * @property {string} content
-         * @property {string} username
-         * @property {string} createdAt
-         * @property {number | null} parentID
-         */
-        
-        /** @typedef {Object} PoetNode */
-        /**
-         * @typedef {Object} PoetNode
-         * @property {string} id - 诗人姓名
-         * @property {string} dynasty - 朝代
-         * @property {number} group - D3 分组
-         */
-
-        /** @typedef {Object} PoetLink */
-        /**
-         * @typedef {Object} PoetLink
-         * @property {string} source - 诗人 A 姓名
-         * @property {string} target - 诗人 B 姓名
-         * @property {string} relation - 关系描述
-         * @property {number} value - 关系强度
-         */
-
-
-        // --- 2. 视图管理函数 ---
-        let currentPoemId = null;
-        const views = {
-            list: document.getElementById('list-view'),
-            detail: document.getElementById('detail-view'),
-            graph: document.getElementById('graph-view'),
-        };
-
-        /**
-         * 切换视图
-         * @param {'list' | 'detail' | 'graph'} viewName 
-         */
-        function showView(viewName) {
-            Object.keys(views).forEach(key => {
-                views[key].classList.add('hidden');
+        // --- 1. 视图切换 ---
+        function changeView(viewId) {
+            document.querySelectorAll('.view').forEach(view => {
+                view.classList.remove('active');
             });
-            views[viewName].classList.remove('hidden');
-            
-            // 确保在切换到列表时清空详情和图谱
-            if (viewName === 'list') {
-                currentPoemId = null;
+            document.getElementById(viewId).classList.add('active');
+
+            // 如果切换到关系图谱，确保数据已加载
+            if (viewId === 'relationship-view') {
+                fetchRelationships();
             }
         }
 
-
-        // --- 3. 消息提示函数 ---
-        const showMessage = (message, type = 'info') => {
+        // --- 2. 消息提示 ---
+        function showMessage(msg, type = 'info') {
             const container = document.getElementById('message-container');
-            let bgColor, textColor;
+            const alert = document.createElement('div');
+            
+            let color = 'bg-blue-500';
+            if (type === 'success') color = 'bg-green-500';
+            if (type === 'error') color = 'bg-red-500';
 
-            switch (type) {
-                case 'success':
-                    bgColor = 'bg-green-100 border-green-400 text-green-700';
-                    textColor = 'text-green-700';
-                    break;
-                case 'error':
-                    bgColor = 'bg-red-100 border-red-400 text-red-700';
-                    textColor = 'text-red-700';
-                    break;
-                case 'info':
-                default:
-                    bgColor = 'bg-blue-100 border-blue-400 text-blue-700';
-                    textColor = 'text-blue-700';
-                    break;
-            }
+            alert.className = `${color} text-white px-4 py-3 rounded-lg shadow-xl text-sm opacity-0 transition-opacity duration-300`;
+            alert.textContent = msg;
 
-            const messageBox = document.createElement('div');
-            messageBox.className = `fixed top-4 right-4 z-50 p-4 rounded-lg shadow-xl border ${bgColor} transition-opacity duration-300 opacity-0`;
-            messageBox.innerHTML = `<p class="font-medium ${textColor}">${message}</p>`;
+            container.appendChild(alert);
 
-            container.appendChild(messageBox);
-
-            // 淡入
-            setTimeout(() => messageBox.style.opacity = '1', 10);
-
-            // 3秒后淡出并移除
+            // 动画显示
             setTimeout(() => {
-                messageBox.style.opacity = '0';
-                setTimeout(() => container.removeChild(messageBox), 300);
-            }, 3000);
-        };
+                alert.classList.remove('opacity-0');
+                alert.classList.add('opacity-100');
+            }, 10); 
+
+            // 自动消失
+            setTimeout(() => {
+                alert.classList.remove('opacity-100');
+                alert.classList.add('opacity-0');
+                setTimeout(() => alert.remove(), 300);
+            }, 5000);
+        }
+        
+        // --- 3. 评论渲染 (递归渲染回复) ---
+        function renderComments(comments) {
+            const container = document.getElementById('comments-container');
+            container.innerHTML = '';
+            
+            // 1. 构建树形结构 (通过 parentID)
+            const commentMap = {};
+            const rootComments = [];
+            comments.forEach(c => {
+                commentMap[c.id] = {...c, replies: []};
+                if (c.parentID === null) {
+                    rootComments.push(commentMap[c.id]);
+                }
+            });
+
+            comments.forEach(c => {
+                if (c.parentID !== null && commentMap[c.parentID]) {
+                    commentMap[c.parentID].replies.push(commentMap[c.id]);
+                }
+            });
+
+            // 2. 递归渲染函数
+            const renderCommentNode = (comment, level = 0) => {
+                const commentDiv = document.createElement('div');
+                let paddingClass = level > 0 ? 'ml-6 pl-4 border-l border-gray-200' : '';
+                
+                commentDiv.className = `p-4 rounded-lg bg-gray-50 ${paddingClass}`;
+                commentDiv.innerHTML = `
+                    <div class="flex justify-between items-center mb-1">
+                        <span class="font-semibold text-red-700">${comment.username}</span>
+                        <span class="text-xs text-gray-500">${new Date(comment.createdAt).toLocaleDateString()} ${new Date(comment.createdAt).toLocaleTimeString()}</span>
+                    </div>
+                    <p class="text-gray-800 text-classical">${comment.content}</p>
+                    <button class="reply-button text-xs text-red-500 hover:text-red-700 mt-1" data-id="${comment.id}" data-username="${comment.username}">回复</button>
+                    <div id="replies-of-${comment.id}" class="mt-3 space-y-3"></div>
+                `;
+                
+                // 添加回复框的逻辑
+                commentDiv.querySelector('.reply-button').onclick = (e) => {
+                    const parentID = e.target.dataset.id;
+                    const parentUser = e.target.dataset.username;
+                    const existingForm = document.getElementById(`reply-form-${parentID}`);
+                    
+                    // 如果回复表单已存在，则移除
+                    if (existingForm) {
+                        existingForm.remove();
+                        e.target.textContent = '回复'; // 恢复按钮文本
+                        return;
+                    }
+                    
+                    // 移除所有已存在的回复表单
+                    document.querySelectorAll('[id^="reply-form-"]').forEach(form => form.remove());
+                    document.querySelectorAll('.reply-button').forEach(btn => btn.textContent = '回复');
+
+                    // 创建新的回复表单
+                    const replyForm = document.createElement('form');
+                    replyForm.id = `reply-form-${parentID}`;
+                    replyForm.className = 'mt-3 p-3 border rounded-lg bg-white';
+                    replyForm.innerHTML = `
+                        <input type="hidden" id="reply-poem-id-${parentID}" value="${document.getElementById('comment-poem-id').value}">
+                        <input type="hidden" id="reply-parent-id-${parentID}" value="${parentID}">
+                        <textarea id="reply-content-${parentID}" placeholder="回复 @${parentUser}: " rows="2" class="w-full p-2 border rounded-lg focus:outline-none focus:border-red-500 mb-2 text-classical"></textarea>
+                        <div class="flex justify-end">
+                            <input type="text" id="reply-username-${parentID}" placeholder="你的名字 (可选)" class="px-2 py-1 border rounded-lg w-1/4 mr-2 text-sm text-classical">
+                            <button type="submit" class="bg-red-600 text-white px-4 py-1 rounded-lg font-semibold hover:bg-red-700 transition duration-150 text-sm">提交回复</button>
+                        </div>
+                    `;
+                    
+                    // 提交回复事件
+                    replyForm.addEventListener('submit', (event) => submitComment(event, parentID, true));
+                    
+                    commentDiv.appendChild(replyForm);
+                    e.target.textContent = '取消回复'; // 更改按钮文本
+                };
 
 
-        // --- 4. 数据获取与渲染：诗词列表 ---
+                // 递归渲染子回复
+                const repliesContainer = commentDiv.querySelector(`#replies-of-${comment.id}`);
+                comment.replies.forEach(reply => {
+                    repliesContainer.appendChild(renderCommentNode(reply, level + 1));
+                });
+
+                return commentDiv;
+            };
+
+            // 3. 将根评论添加到主容器
+            if (rootComments.length === 0) {
+                container.innerHTML = '<p class="text-center text-gray-500">暂无评论，快来抢沙发吧！</p>';
+            } else {
+                rootComments.forEach(comment => {
+                    container.appendChild(renderCommentNode(comment));
+                });
+            }
+        }
+        
+        // --- 4. 数据获取与渲染：诗词列表 (支持搜索) ---
 
         /**
          * 渲染古诗词列表
@@ -201,7 +267,8 @@
          */
         function renderPoemList(poems) {
             const listContainer = document.getElementById('poem-list');
-            listContainer.innerHTML = '';
+            // 核心：清空旧列表，渲染新列表
+            listContainer.innerHTML = ''; 
 
             poems.forEach(poem => {
                 const card = document.createElement('div');
@@ -214,15 +281,51 @@
                 card.onclick = () => fetchPoemDetail(poem.id);
                 listContainer.appendChild(card);
             });
+            // 如果没有诗词，显示提示
+            if (poems.length === 0) {
+                listContainer.innerHTML = '<p class="col-span-full text-center text-gray-500">未找到符合条件的古诗词。</p>';
+            }
         }
 
-        async function fetchPoems() {
+        /**
+         * 获取古诗词列表，支持搜索查询
+         * @param {string} [query=''] - 搜索关键词
+         */
+        async function fetchPoems(query = '') {
             try {
-                const response = await fetch(`${API_BASE_URL}/poems`);
+                // 构建带搜索参数的 URL
+                const url = query 
+                    ? `${API_BASE_URL}/poems?search=${encodeURIComponent(query)}` 
+                    : `${API_BASE_URL}/poems`;
+                    
+                const response = await fetch(url);
                 const result = await response.json();
 
                 if (result.code === 200) {
+                    // **核心：调用 renderPoemList 刷新列表**
                     renderPoemList(result.data);
+                    
+                    // 【搜索后的效果反馈】
+                    const statusContainer = document.getElementById('search-status-container');
+                    const currentQuerySpan = document.getElementById('current-search-query');
+                    const searchInput = document.getElementById('search-query');
+                    
+                    if (query) {
+                        // 1. 显示筛选状态
+                        statusContainer.classList.remove('hidden');
+                        currentQuerySpan.textContent = query;
+                        showMessage(`搜索完成，找到 ${result.data.length} 首诗词。`, 'success');
+                        // 2. 清空搜索框（优化用户体验）
+                        searchInput.value = ''; 
+                    } else {
+                        // 3. 隐藏筛选状态（如果query为空，表示是全量加载）
+                        statusContainer.classList.add('hidden');
+                        // 只有在用户主动清除搜索时才显示提示
+                        if (currentQuerySpan.textContent) {
+                            showMessage('已清除搜索条件，显示全部列表。', 'info');
+                        }
+                    }
+                    
                 } else {
                     showMessage(`获取列表失败: ${result.message}`, 'error');
                 }
@@ -233,38 +336,24 @@
         }
 
 
-        // --- 5. 数据获取与渲染：诗词详情 ---
-
-        /**
-         * 渲染古诗词详情
-         * @param {PoemResult} poem 
-         */
-        function renderPoemDetail(poem) {
-            const detailContainer = document.getElementById('poem-detail');
-            detailContainer.innerHTML = `
-                <h2 class="text-4xl font-extrabold mb-4 text-center text-red-800">${poem.title}</h2>
-                <p class="text-lg text-gray-600 mb-6 text-center">${poem.dynasty} · **${poem.author}**</p>
-                <div class="whitespace-pre-wrap text-xl leading-relaxed border-t border-b border-gray-200 py-6">
-                    ${poem.content}
-                </div>
-            `;
-            
-            // 设置评论表单的 poem ID
-            document.getElementById('form-poem-id').value = poem.id;
-        }
+        // --- 5. 数据获取与渲染：诗词详情与评论 ---
 
         async function fetchPoemDetail(id) {
-            currentPoemId = id;
             try {
-                const response = await fetch(`${API_BASE_URL}/poem/${id}`);
-                const result = await response.json();
+                const detailResponse = await fetch(`${API_BASE_URL}/poem/${id}`);
+                const detailResult = await detailResponse.json();
 
-                if (result.code === 200) {
-                    renderPoemDetail(result.data);
-                    fetchComments(id);
-                    showView('detail');
+                if (detailResult.code === 200) {
+                    const poem = detailResult.data;
+                    document.getElementById('detail-title').textContent = poem.title;
+                    document.getElementById('detail-meta').textContent = `${poem.dynasty} · ${poem.author}`;
+                    document.getElementById('detail-content').textContent = poem.content;
+                    document.getElementById('comment-poem-id').value = poem.id; // 填充评论表单的ID
+                    
+                    await fetchComments(id);
+                    changeView('detail-view');
                 } else {
-                    showMessage(`获取详情失败: ${result.message}`, 'error');
+                    showMessage(`获取详情失败: ${detailResult.message}`, 'error');
                 }
             } catch (error) {
                 console.error('Fetch poem detail failed:', error);
@@ -272,258 +361,163 @@
             }
         }
 
-
-        // --- 6. 数据获取与渲染：评论功能 ---
-
-        function formatCommentTime(timestamp) {
-            const date = new Date(timestamp);
-            return date.toLocaleString('zh-CN', { year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-        }
-
-        /**
-         * 渲染评论列表
-         * @param {CommentResult[]} comments 
-         */
-        function renderCommentsList(comments) {
-            const listContainer = document.getElementById('comments-list');
-            listContainer.innerHTML = '';
-            
-            // 1. 构建评论树结构 (Map<parentID, children>)
-            const commentMap = new Map();
-            comments.forEach(c => {
-                commentMap.set(c.id, {...c, children: []});
-            });
-
-            const rootComments = [];
-            comments.forEach(c => {
-                if (c.parentID && commentMap.has(c.parentID)) {
-                    commentMap.get(c.parentID).children.push(commentMap.get(c.id));
-                } else {
-                    rootComments.push(commentMap.get(c.id));
-                }
-            });
-
-            // 2. 递归渲染评论
-            const renderComment = (comment, isReply = false) => {
-                const commentDiv = document.createElement('div');
-                commentDiv.className = `p-3 rounded-lg ${isReply ? 'ml-6 border-l border-gray-200 bg-gray-50' : 'bg-gray-100'}`;
-                
-                const replyText = comment.parentID && commentMap.has(comment.parentID) ? 
-                    `<span class="text-red-600 font-medium">回复 ${commentMap.get(comment.parentID).username}：</span>` : '';
-
-                commentDiv.innerHTML = `
-                    <div class="flex justify-between items-center mb-1">
-                        <span class="font-semibold text-gray-800">${comment.username}</span>
-                        <span class="text-xs text-gray-500">${formatCommentTime(comment.createdAt)}</span>
-                    </div>
-                    <p class="text-gray-700 text-sm mb-2">${replyText}${comment.content}</p>
-                    <button onclick="startReply(${comment.id}, '${comment.username}')" class="text-xs text-blue-500 hover:text-blue-700 transition duration-150">回复</button>
-                `;
-                
-                listContainer.appendChild(commentDiv);
-
-                // 递归渲染子评论
-                comment.children.forEach(child => {
-                    // 对于子评论，我们再次调用 renderComment，并设置为 isReply=true
-                    renderComment(child, true); 
-                });
-            };
-
-            rootComments.forEach(c => renderComment(c, false));
-            
-            if (comments.length === 0) {
-                listContainer.innerHTML = '<p class="text-gray-500 text-center">暂无评论，快来发表您的见解吧！</p>';
-            }
-        }
-
-        /**
-         * 启动回复模式
-         */
-        function startReply(parentID, username) {
-            document.getElementById('form-parent-id').value = parentID;
-            document.getElementById('reply-target-username').textContent = username;
-            document.getElementById('reply-info').classList.remove('hidden');
-            // 滚动到评论表单
-            document.getElementById('comment-form').scrollIntoView({ behavior: 'smooth' });
-            document.getElementById('comment-content').focus();
-        }
-
-        /**
-         * 取消回复模式
-         */
-        function cancelReply() {
-            document.getElementById('form-parent-id').value = '';
-            document.getElementById('reply-info').classList.add('hidden');
-        }
-
-
         async function fetchComments(poemID) {
             try {
                 const response = await fetch(`${API_BASE_URL}/comments/${poemID}`);
                 const result = await response.json();
 
                 if (result.code === 200) {
-                    renderCommentsList(result.data);
+                    renderComments(result.data);
                 } else {
                     showMessage(`获取评论失败: ${result.message}`, 'error');
                 }
             } catch (error) {
                 console.error('Fetch comments failed:', error);
-                showMessage('网络错误，无法获取评论。', 'error');
+                // 即使失败也继续显示页面，只在评论区给出提示
+                document.getElementById('comments-container').innerHTML = '<p class="text-center text-red-500">评论加载失败。</p>';
             }
         }
 
-        document.getElementById('comment-form').addEventListener('submit', async (event) => {
+        // --- 6. 评论提交 ---
+
+        async function submitComment(event, parentID = null, isReply = false) {
             event.preventDefault();
             
-            const poemID = parseInt(document.getElementById('form-poem-id').value);
-            const content = document.getElementById('comment-content').value.trim();
-            const username = document.getElementById('comment-username').value.trim() || '匿名用户';
-            const parentID = document.getElementById('form-parent-id').value || null;
+            let poemID, content, username;
 
-            if (!content) return;
+            if (isReply && parentID) {
+                poemID = document.getElementById(`reply-poem-id-${parentID}`).value;
+                content = document.getElementById(`reply-content-${parentID}`).value.trim();
+                username = document.getElementById(`reply-username-${parentID}`).value.trim() || '匿名用户';
+            } else {
+                poemID = document.getElementById('comment-poem-id').value;
+                content = document.getElementById('comment-content').value.trim();
+                username = document.getElementById('comment-username').value.trim() || '匿名用户';
+            }
+            
+            if (!content) {
+                showMessage('评论内容不能为空！', 'error');
+                return;
+            }
+
+            const payload = {
+                poemID: parseInt(poemID),
+                content,
+                username,
+                parentID: parentID ? parseInt(parentID) : null
+            };
 
             try {
                 const response = await fetch(`${API_BASE_URL}/comments`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        poemID, 
-                        content, 
-                        username, 
-                        parentID: parentID ? parseInt(parentID) : null // 确保 parentID 是 null 或数字
-                    })
+                    body: JSON.stringify(payload)
                 });
-
                 const result = await response.json();
 
                 if (result.code === 201) {
-                    showMessage('评论添加成功！', 'success');
+                    showMessage('评论发表成功！', 'success');
                     
-                    // 清空表单和取消回复状态
-                    document.getElementById('comment-content').value = '';
-                    cancelReply(); 
-                    
-                    // 重新加载评论
-                    fetchComments(poemID);
+                    // 清空表单
+                    if (isReply && parentID) {
+                        document.getElementById(`reply-content-${parentID}`).value = '';
+                        // 移除回复框
+                        document.getElementById(`reply-form-${parentID}`).remove();
+                        document.querySelector(`[data-id="${parentID}"]`).textContent = '回复'; // 恢复按钮文本
+                    } else {
+                        document.getElementById('comment-content').value = '';
+                    }
 
+                    // 重新加载评论
+                    await fetchComments(poemID);
                 } else {
                     showMessage(`评论失败: ${result.message}`, 'error');
                 }
             } catch (error) {
                 console.error('Submit comment failed:', error);
-                showMessage('网络错误，无法提交评论。', 'error');
+                showMessage('网络错误，评论发表失败。', 'error');
             }
-        });
+        }
 
 
-        // --- 7. 数据获取与渲染：关系图谱 (使用 SVG 渲染) ---
+        // --- 7. D3 关系图谱渲染 ---
+        
+        // ... (保持不变：D3相关函数) ...
 
-        /**
-         * 渲染诗人关系图谱
-         * @param {RelationshipData} data 
-         */
         function renderRelationshipGraph(data) {
-            const svg = d3.select("#relationship-graph");
-            const container = document.getElementById('graph-container');
-            
-            // 清理旧的图谱
-            svg.selectAll("*").remove();
+            const container = d3.select("#relationship-chart");
+            container.selectAll("*").remove(); // 清除旧图表内容
 
-            // 确保 SVG 尺寸自适应或固定
-            const width = container.clientWidth;
+            const width = container.node().clientWidth;
             const height = 700;
-            svg.attr("width", width).attr("height", height);
+
+            const svg = container.append("svg")
+                .attr("width", width)
+                .attr("height", height);
 
             const nodes = data.nodes;
             const links = data.links;
             
-            // 创建力导向图模拟
             const simulation = d3.forceSimulation(nodes)
-                .force("link", d3.forceLink(links).id(d => d.id).distance(150).strength(0.8))
+                .force("link", d3.forceLink(links).id(d => d.id).distance(100))
                 .force("charge", d3.forceManyBody().strength(-300))
                 .force("center", d3.forceCenter(width / 2, height / 2))
-                .force("x", d3.forceX().strength(0.05))
-                .force("y", d3.forceY().strength(0.05));
+                .on("tick", ticked);
 
+            // 定义颜色比例尺
+            const colorScale = d3.scaleOrdinal(d3.schemeCategory10);
 
-            // 绘制连线 (links)
+            // 绘制连线
             const link = svg.append("g")
-                .attr("stroke", "#999")
-                .attr("stroke-opacity", 0.6)
+                .attr("class", "links")
                 .selectAll("line")
                 .data(links)
-                .join("line")
-                .attr("stroke-width", d => Math.sqrt(d.value) * 2); // 根据强度调整线宽
+                .enter().append("line")
+                .attr("stroke-width", d => Math.sqrt(d.value))
+                .attr("class", "link");
 
-            // 绘制连线上的文字 (关系描述)
-            const linkText = svg.append("g")
-                .attr("class", "link-labels")
-                .selectAll("text")
-                .data(links)
-                .join("text")
-                .attr("fill", "#666")
-                .attr("font-size", 10)
-                .text(d => d.relation);
-
-
-            // 绘制节点 (nodes)
+            // 绘制节点 (包含圆圈和文本)
             const node = svg.append("g")
-                .attr("stroke", "#fff")
-                .attr("stroke-width", 1.5)
-                .selectAll("circle")
+                .attr("class", "nodes")
+                .selectAll("g")
                 .data(nodes)
-                .join("circle")
-                .attr("r", 10)
-                // 使用 CSS 类来根据朝代分组着色
-                .attr("class", d => `node-group-${d.group}`) 
+                .enter().append("g")
+                .attr("class", "node")
                 .call(drag(simulation));
 
-            // 绘制节点上的文字 (诗人名称)
-            const labels = svg.append("g")
-                .attr("class", "node-labels")
-                .attr("pointer-events", "none") // 确保文字不会阻挡对节点的点击/拖拽
-                .attr("font-family", "Noto Serif SC, serif")
-                .selectAll("text")
-                .data(nodes)
-                .join("text")
-                .attr("text-anchor", "middle")
-                .attr("dy", ".3em")
-                .attr("fill", "#333")
-                .text(d => d.id);
+            // 添加节点圆圈
+            node.append("circle")
+                .attr("r", 8)
+                .attr("fill", d => colorScale(d.group)); 
+
+            // 添加节点标签 (诗人姓名)
+            node.append("text")
+                .text(d => d.id)
+                .attr('x', 10)
+                .attr('y', 3)
+                .attr('fill', '#3f3f3f')
+                .attr('font-size', '12px');
+
+            // 关系描述 tooltip
+            link.append("title")
+                .text(d => `${d.source.id} — ${d.relation} — ${d.target.id}`);
             
-            // 节点的交互提示 (Tooltip)
             node.append("title")
-                .text(d => `${d.id} (${d.dynasty})\n关系强度: ${d.value || 'N/A'}`);
+                .text(d => `${d.id} (${d.dynasty})`);
 
-
-            // 模拟器的 tick 函数
-            simulation.on("tick", () => {
-                // 更新连线位置
+            // Tick 函数：更新元素位置
+            function ticked() {
                 link
                     .attr("x1", d => d.source.x)
                     .attr("y1", d => d.source.y)
                     .attr("x2", d => d.target.x)
                     .attr("y2", d => d.target.y);
 
-                // 更新连线文字位置（放在连线中间）
-                linkText
-                    .attr("x", d => (d.source.x + d.target.x) / 2)
-                    .attr("y", d => (d.source.y + d.target.y) / 2);
-
-                // 更新节点位置
                 node
-                    .attr("cx", d => d.x)
-                    .attr("cy", d => d.y);
-                
-                // 更新标签位置
-                labels
-                    .attr("x", d => d.x)
-                    .attr("y", d => d.y + 18); // 文字放在节点下方
-            });
+                    .attr("transform", d => `translate(${d.x},${d.y})`);
+            }
 
-
-            // D3 拖拽函数
+            // 拖拽函数
             function drag(simulation) {
                 function dragstarted(event) {
                     if (!event.active) simulation.alphaTarget(0.3).restart();
@@ -538,8 +532,8 @@
 
                 function dragended(event) {
                     if (!event.active) simulation.alphaTarget(0);
-                    event.subject.fx = null; // 释放固定位置
-                    event.subject.fy = null;
+                    // event.subject.fx = null; // 释放固定位置
+                    // event.subject.fy = null;
                 }
 
                 return d3.drag()
@@ -569,7 +563,25 @@
 
         // --- 8. 启动应用 ---
         document.addEventListener('DOMContentLoaded', () => {
+            // 初始加载诗词列表
             fetchPoems();
+            
+            // 监听主评论表单提交
+            document.getElementById('comment-form').addEventListener('submit', (event) => submitComment(event));
+            
+            // 监听搜索表单提交
+            document.getElementById('search-form').addEventListener('submit', (event) => {
+                event.preventDefault();
+                const searchQuery = document.getElementById('search-query').value.trim();
+                fetchPoems(searchQuery);
+            });
+            
+            // **新增：监听清除搜索按钮点击**
+            document.getElementById('clear-search-btn').addEventListener('click', () => {
+                // 清空搜索状态，并加载全部数据
+                document.getElementById('current-search-query').textContent = '';
+                fetchPoems(); 
+            });
         });
 
     </script>
