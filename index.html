@@ -39,6 +39,8 @@
             border: 1px solid #e0e0e0;
             border-radius: 10px;
             background-color: white;
+            /* 关键：确保 SVG 元素能够捕获缩放事件 */
+            touch-action: none; 
         }
     </style>
 </head>
@@ -442,8 +444,6 @@
 
         // --- 7. D3 关系图谱渲染 ---
         
-        // ... (保持不变：D3相关函数) ...
-
         function renderRelationshipGraph(data) {
             const container = d3.select("#relationship-chart");
             container.selectAll("*").remove(); // 清除旧图表内容
@@ -454,6 +454,19 @@
             const svg = container.append("svg")
                 .attr("width", width)
                 .attr("height", height);
+
+            // FIX 1: 添加一个分组元素来容纳所有节点和连线，实现缩放和平移
+            const g = svg.append("g"); 
+
+            // FIX 2: 定义缩放和平移行为 (Zoom/Pan)
+            const zoom = d3.zoom()
+                .scaleExtent([0.1, 4]) // 缩放范围 10% 到 400%
+                .on("zoom", (event) => {
+                    // 当缩放或平移时，将变换应用到整个图表的容器 <g> 上
+                    g.attr("transform", event.transform);
+                });
+            
+            svg.call(zoom); // 将Zoom行为应用到SVG上
 
             const nodes = data.nodes;
             const links = data.links;
@@ -467,8 +480,8 @@
             // 定义颜色比例尺
             const colorScale = d3.scaleOrdinal(d3.schemeCategory10);
 
-            // 绘制连线
-            const link = svg.append("g")
+            // 绘制连线 (画在 g 里面)
+            const link = g.append("g")
                 .attr("class", "links")
                 .selectAll("line")
                 .data(links)
@@ -476,8 +489,8 @@
                 .attr("stroke-width", d => Math.sqrt(d.value))
                 .attr("class", "link");
 
-            // 绘制节点 (包含圆圈和文本)
-            const node = svg.append("g")
+            // 绘制节点 (画在 g 里面)
+            const node = g.append("g")
                 .attr("class", "nodes")
                 .selectAll("g")
                 .data(nodes)
@@ -532,8 +545,7 @@
 
                 function dragended(event) {
                     if (!event.active) simulation.alphaTarget(0);
-                    // event.subject.fx = null; // 释放固定位置
-                    // event.subject.fy = null;
+                    // 保持固定
                 }
 
                 return d3.drag()

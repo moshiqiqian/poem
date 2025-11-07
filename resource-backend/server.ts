@@ -48,14 +48,14 @@ interface NewCommentBody {
 }
 
 interface PoetNode {
-    id: string; 
+    id: string; // D3 节点ID，对应 poet.name
     dynasty: string;
     group: number; 
 }
 
 interface PoetLink {
-    source: string; 
-    target: string; 
+    source: string; // D3 连线源节点ID (poet.name)
+    target: string; // D3 连线目标节点ID (poet.name)
     relation: string;
     value: number; 
 }
@@ -90,11 +90,14 @@ app.use(cors({
  * 辅助函数：根据朝代获取 D3 分组 ID
  */
 const getDynastyGroup = (dynasty: string): number => {
+    // 明确划分分组，确保所有朝代都有一个组ID
     if (dynasty.includes('唐')) return 1;
     if (dynasty.includes('宋')) return 2;
     if (dynasty.includes('清')) return 3;
     if (dynasty.includes('明')) return 4;
-    return 99; // 其他朝代
+    if (dynasty.includes('魏晋')) return 5; // 增强分组支持
+    if (dynasty.includes('汉')) return 6; 
+    return 99; // 其他朝代/未分类
 };
 
 
@@ -104,12 +107,12 @@ const getDynastyGroup = (dynasty: string): number => {
  */
 app.get('/api/relationships', async (req: express.Request, res: express.Response) => {
     try {
-        // 1. 查询所有诗人 (图谱节点)
+        // 1. 查询所有诗人 (图谱节点) - 确保所有诗人都包含在内
         const nodesSql = `SELECT name, dynasty FROM poet`;
         const [nodesRows] = await pool.query<RowDataPacket[]>(nodesSql); 
 
         const nodes: PoetNode[] = nodesRows.map(row => ({
-            id: row.name as string,
+            id: row.name as string, // 使用 name 作为 D3 节点ID
             dynasty: row.dynasty as string,
             group: getDynastyGroup(row.dynasty as string)
         }));
@@ -119,8 +122,8 @@ app.get('/api/relationships', async (req: express.Request, res: express.Response
         const [linksRows] = await pool.query<RowDataPacket[]>(linksSql); 
 
         const links: PoetLink[] = linksRows.map(row => ({
-            source: row.poetA_name as string,
-            target: row.poetB_name as string,
+            source: row.poetA_name as string, // 使用 name 作为 D3 连线源节点ID
+            target: row.poetB_name as string, // 使用 name 作为 D3 连线目标节点ID
             relation: row.relation as string,
             value: row.value as number
         }));
